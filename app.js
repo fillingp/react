@@ -163,7 +163,8 @@ class VisionCameraApp {
         const geminiBtn = document.getElementById('geminiChatBtn');
         if (geminiBtn) geminiBtn.addEventListener('click', () => this.showChatModal('gemini'));
         
-        // --- Modular AI/Recognition button event
+        // Remove individual feature buttons from main UI event listeners
+        // Add modular AI/Recognition button event
         const modularBtn = document.getElementById('modularAiBtn');
         if (modularBtn) modularBtn.addEventListener('click', () => this.showModularAiModal());
         // Modular modal events
@@ -187,6 +188,7 @@ class VisionCameraApp {
 
     showModularAiModal() {
         const modal = document.getElementById('modularAiModal');
+        // Update button states for toggles
         if (modal) {
             modal.classList.remove('hidden');
             // Highlight active features
@@ -1054,11 +1056,6 @@ class VisionCameraApp {
 
     // --- Unified Chat Modal (used for both Perplexity and Gemini) ---
     showChatModal(type = 'perplexity') {
-        // Remove any other open chat modals
-        ['perplexityChatModal', 'geminiChatModal'].forEach(id => {
-            const m = document.getElementById(id);
-            if (m) m.classList.add('hidden');
-        });
         let modal = document.getElementById(`${type}ChatModal`);
         if (!modal) {
             modal = document.createElement('div');
@@ -1083,7 +1080,6 @@ class VisionCameraApp {
         }
         document.getElementById(`${type}ChatHistory`).innerHTML = '';
         modal.classList.remove('hidden');
-        document.getElementById(`${type}ChatInput`).focus();
     }
 
     async sendChatMessage(type = 'perplexity') {
