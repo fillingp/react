@@ -74,13 +74,7 @@
                 </svg>
             </button>
             
-            <button id="chatBtn" class="control-btn chat-btn" title="AI Chat">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                </svg>
-            </button>
-            
-            <button id="googleApiBtn" class="control-btn google-api-btn" title="Google API Test">
+            <button id="modularAiBtn" class="control-btn modular-ai-btn" title="AI & Rozpoznání">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="10"/>
                     <path d="M12 8v4l3 3"/>
@@ -138,113 +132,108 @@
             </div>
         </div>
 
-        <!-- Frame Processor Controls -->
-        <div class="frame-processor-controls">
-            <button id="faceDetectionBtn" class="processor-btn" title="Detekce obličeje">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                    <circle cx="12" cy="7" r="4"/>
-                </svg>
-            </button>
-            
-            <button id="objectDetectionBtn" class="processor-btn" title="Rozpoznání objektů">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"/>
-                    <path d="M21 21l-4.35-4.35"/>
-                </svg>
-            </button>
-            
-            <button id="textRecognitionBtn" class="processor-btn" title="Rozpoznání textu">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14,2 14,8 20,8"/>
-                    <line x1="16" y1="13" x2="8" y2="13"/>
-                    <line x1="16" y1="17" x2="8" y2="17"/>
-                </svg>
-            </button>
-        </div>
-    </div>
-
-    <!-- Gallery Modal -->
-    <div id="galleryModal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Galerie</h3>
-                <button id="closeGalleryBtn" class="close-btn">&times;</button>
-            </div>
-            <div class="gallery-grid" id="galleryGrid">
-                <!-- Gallery items will be populated here -->
+        <!-- Modular AI/Recognition Modal (transparent, toggles all real-time features and AI chat) -->
+        <div id="modularAiModal" class="modal hidden" style="background:rgba(30,30,30,0.6);">
+            <div class="modal-content" style="max-width:420px;background:rgba(255,255,255,0.92);border-radius:16px;box-shadow:0 4px 32px #0002;">
+                <h3 style="margin-bottom:8px;">AI & Rozpoznání</h3>
+                <div class="feature-toggles" style="display:flex;flex-direction:column;gap:10px;">
+                    <button id="toggleFaceDetection" class="feature-toggle-btn">Detekce obličeje</button>
+                    <button id="toggleObjectDetection" class="feature-toggle-btn">Rozpoznání objektů</button>
+                    <button id="toggleTextRecognition" class="feature-toggle-btn">Rozpoznání textu</button>
+                    <button id="toggleQrScanning" class="feature-toggle-btn">QR skener</button>
+                    <hr>
+                    <button id="openPerplexityChat" class="feature-toggle-btn">AI Chat (Perplexity)</button>
+                    <button id="openGeminiChat" class="feature-toggle-btn">AI Chat (Gemini)</button>
+                </div>
+                <button id="closeModularAiModal" style="float:right;margin-top:10px;">Zavřít</button>
             </div>
         </div>
-    </div>
 
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Nastavení</h3>
-                <button id="closeSettingsBtn" class="close-btn">&times;</button>
-            </div>
-            <div class="settings-content">
-                <div class="setting-group">
-                    <label for="qualitySelect">Kvalita záznamu:</label>
-                    <select id="qualitySelect" class="form-control">
-                        <option value="720p">HD (720p)</option>
-                        <option value="1080p" selected>Full HD (1080p)</option>
-                        <option value="4k">4K (pokud dostupné)</option>
-                    </select>
+        <!-- Gallery Modal -->
+        <div id="galleryModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Galerie</h3>
+                    <button id="closeGalleryBtn" class="close-btn">&times;</button>
                 </div>
-                
-                <div class="setting-group">
-                    <label for="formatSelect">Formát videa:</label>
-                    <select id="formatSelect" class="form-control">
-                        <option value="webm">WebM</option>
-                        <option value="mp4">MP4</option>
-                    </select>
-                </div>
-                
-                <div class="setting-group">
-                    <label>
-                        <input type="checkbox" id="hapticFeedback" checked>
-                        Haptická odezva
-                    </label>
-                </div>
-                
-                <div class="setting-group">
-                    <label>
-                        <input type="checkbox" id="autoSave" checked>
-                        Automatické uložení
-                    </label>
-                </div>
-                
-                <div class="setting-group">
-                    <label for="googleApiKey">Google API klíč</label>
-                    <input type="text" id="googleApiKey" placeholder="Google API Key">
-                </div>
-                <div class="setting-group">
-                    <label for="perplexityApiKey">Perplexity API klíč</label>
-                    <input type="text" id="perplexityApiKey" placeholder="Perplexity API Key">
+                <div class="gallery-grid" id="galleryGrid">
+                    <!-- Gallery items will be populated here -->
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Toast Notifications -->
-    <div id="toastContainer" class="toast-container"></div>
-
-    <!-- PWA Install Prompt -->
-    <div id="pwaInstallPrompt" class="pwa-install-prompt hidden">
-        <div class="pwa-content">
-            <h4>Přidat na plochu</h4>
-            <p>Nainstalujte VisionCamera pro lepší zážitek</p>
-            <div class="pwa-buttons">
-                <button id="installPwaBtn" class="btn btn--primary">Nainstalovat</button>
-                <button id="dismissPwaBtn" class="btn btn--secondary">Později</button>
+        <!-- Settings Modal -->
+        <div id="settingsModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Nastavení</h3>
+                    <button id="closeSettingsBtn" class="close-btn">&times;</button>
+                </div>
+                <div class="settings-content">
+                    <div class="setting-group">
+                        <label for="qualitySelect">Kvalita záznamu:</label>
+                        <select id="qualitySelect" class="form-control">
+                            <option value="720p">HD (720p)</option>
+                            <option value="1080p" selected>Full HD (1080p)</option>
+                            <option value="4k">4K (pokud dostupné)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="setting-group">
+                        <label for="formatSelect">Formát videa:</label>
+                        <select id="formatSelect" class="form-control">
+                            <option value="webm">WebM</option>
+                            <option value="mp4">MP4</option>
+                        </select>
+                    </div>
+                    
+                    <div class="setting-group">
+                        <label>
+                            <input type="checkbox" id="hapticFeedback" checked>
+                            Haptická odezva
+                        </label>
+                    </div>
+                    
+                    <div class="setting-group">
+                        <label>
+                            <input type="checkbox" id="autoSave" checked>
+                            Automatické uložení
+                        </label>
+                    </div>
+                    
+                    <div class="setting-group">
+                        <label for="googleApiKey">Google API klíč</label>
+                        <input type="text" id="googleApiKey" placeholder="Google API Key">
+                    </div>
+                    <div class="setting-group">
+                        <label for="perplexityApiKey">Perplexity API klíč</label>
+                        <input type="text" id="perplexityApiKey" placeholder="Perplexity API Key">
+                    </div>
+                    <div class="setting-group">
+                        <label for="geminiApiKey">Gemini API klíč</label>
+                        <input type="text" id="geminiApiKey" placeholder="Gemini API Key">
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="app.js"></script>
+        <!-- Toast Notifications -->
+        <div id="toastContainer" class="toast-container"></div>
+
+        <!-- PWA Install Prompt -->
+        <div id="pwaInstallPrompt" class="pwa-install-prompt hidden">
+            <div class="pwa-content">
+                <h4>Přidat na plochu</h4>
+                <p>Nainstalujte VisionCamera pro lepší zážitek</p>
+                <div class="pwa-buttons">
+                    <button id="installPwaBtn" class="btn btn--primary">Nainstalovat</button>
+                    <button id="dismissPwaBtn" class="btn btn--secondary">Později</button>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script src="app.js"></script>
+    </div>
 </body>
 </html>

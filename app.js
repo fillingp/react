@@ -121,11 +121,6 @@ class VisionCameraApp {
             btn.addEventListener('click', (e) => this.setZoom(parseFloat(e.target.dataset.zoom)));
         });
         
-        // Frame processor controls
-        document.getElementById('faceDetectionBtn').addEventListener('click', () => this.toggleFrameProcessor('faceDetection'));
-        document.getElementById('objectDetectionBtn').addEventListener('click', () => this.toggleFrameProcessor('objectDetection'));
-        document.getElementById('textRecognitionBtn').addEventListener('click', () => this.toggleFrameProcessor('textRecognition'));
-        
         // Modal controls
         document.getElementById('galleryBtn').addEventListener('click', () => this.showGallery());
         document.getElementById('settingsBtn').addEventListener('click', () => this.showSettings());
@@ -163,14 +158,52 @@ class VisionCameraApp {
         
         // Add chat button event
         const chatBtn = document.getElementById('chatBtn');
-        if (chatBtn) chatBtn.addEventListener('click', () => this.showChatModal());
+        if (chatBtn) chatBtn.addEventListener('click', () => this.showChatModal('perplexity'));
+        // Add Gemini chat button event
+        const geminiBtn = document.getElementById('geminiChatBtn');
+        if (geminiBtn) geminiBtn.addEventListener('click', () => this.showChatModal('gemini'));
         
-        // Add Google API test button event
-        const googleApiBtn = document.getElementById('googleApiBtn');
-        if (googleApiBtn) googleApiBtn.addEventListener('click', () => this.showGoogleApiModal());
+        // --- Modular AI/Recognition button event
+        const modularBtn = document.getElementById('modularAiBtn');
+        if (modularBtn) modularBtn.addEventListener('click', () => this.showModularAiModal());
+        // Modular modal events
+        const closeModular = document.getElementById('closeModularAiModal');
+        if (closeModular) closeModular.addEventListener('click', () => document.getElementById('modularAiModal').classList.add('hidden'));
+        // Feature toggles in modular modal
+        const faceBtn = document.getElementById('toggleFaceDetection');
+        if (faceBtn) faceBtn.addEventListener('click', () => this.toggleFrameProcessor('faceDetection'));
+        const objBtn = document.getElementById('toggleObjectDetection');
+        if (objBtn) objBtn.addEventListener('click', () => this.toggleFrameProcessor('objectDetection'));
+        const textBtn = document.getElementById('toggleTextRecognition');
+        if (textBtn) textBtn.addEventListener('click', () => this.toggleFrameProcessor('textRecognition'));
+        const qrBtn = document.getElementById('toggleQrScanning');
+        if (qrBtn) qrBtn.addEventListener('click', () => this.toggleQrScanning());
+        // AI chat buttons in modular modal only
+        const perplexityBtn = document.getElementById('openPerplexityChat');
+        if (perplexityBtn) perplexityBtn.addEventListener('click', () => { this.showChatModal('perplexity'); document.getElementById('modularAiModal').classList.add('hidden'); });
+        const geminiBtnModular = document.getElementById('openGeminiChat');
+        if (geminiBtnModular) geminiBtnModular.addEventListener('click', () => { this.showChatModal('gemini'); document.getElementById('modularAiModal').classList.add('hidden'); });
     }
 
-    setupDemoMode() {
+    showModularAiModal() {
+        const modal = document.getElementById('modularAiModal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            // Highlight active features
+            const features = [
+                { key: 'faceDetection', btn: 'toggleFaceDetection' },
+                { key: 'objectDetection', btn: 'toggleObjectDetection' },
+                { key: 'textRecognition', btn: 'toggleTextRecognition' },
+                { key: 'qrScanning', btn: 'toggleQrScanning' }
+            ];
+            features.forEach(f => {
+                const b = document.getElementById(f.btn);
+                if (b) b.classList.toggle('active', !!this.frameProcessors[f.key]);
+            });
+        }
+    }
+
+    async setupDemoMode() {
         const preview = document.getElementById('cameraPreview');
         preview.style.background = 'linear-gradient(135deg, #2c3e50, #34495e, #4a6741)';
         preview.style.display = 'flex';
@@ -644,141 +677,124 @@ class VisionCameraApp {
         }, 50);
     }
 
+    // --- Real-Time Frame Processor Loop ---
+    startFrameProcessorLoop() {
+        if (this.frameProcessorInterval) clearInterval(this.frameProcessorInterval);
+        this.frameProcessorInterval = setInterval(async () => {
+            if (this.frameProcessors.faceDetection) await this.performFaceDetection(true);
+            if (this.frameProcessors.objectDetection) await this.performObjectDetection(true);
+            if (this.frameProcessors.textRecognition) await this.performTextRecognition(true);
+        }, 2000); // every 2 seconds
+    }
+    stopFrameProcessorLoop() {
+        if (this.frameProcessorInterval) clearInterval(this.frameProcessorInterval);
+    }
+
     toggleFrameProcessor(processor) {
         this.frameProcessors[processor] = !this.frameProcessors[processor];
-        
         const btn = document.getElementById(`${processor}Btn`);
         btn.classList.toggle('active', this.frameProcessors[processor]);
-        
         const processorNames = {
             faceDetection: 'Detekce obličeje',
             objectDetection: 'Rozpoznání objektů',
             textRecognition: 'Rozpoznání textu'
         };
-        
         const status = this.frameProcessors[processor] ? 'aktivováno' : 'deaktivováno';
-        this.showToast(`${processorNames[processor]} ${status}`, 
-                     this.frameProcessors[processor] ? 'success' : 'info');
-        
-        switch (processor) {
-            case 'faceDetection':
-                if (this.frameProcessors[processor]) {
-                    this.performFaceDetection();
-                }
-                this.toggleFaceDetection();
-                break;
-            case 'objectDetection':
-                if (this.frameProcessors[processor]) {
-                    this.performObjectDetection();
-                }
-                break;
-            case 'textRecognition':
-                if (this.frameProcessors[processor]) {
-                    this.performTextRecognition();
-                }
-                break;
+        this.showToast(`${processorNames[processor]} ${status}`, this.frameProcessors[processor] ? 'success' : 'info');
+        // Start/stop loop
+        if (this.frameProcessors.faceDetection || this.frameProcessors.objectDetection || this.frameProcessors.textRecognition) {
+            this.startFrameProcessorLoop();
+        } else {
+            this.stopFrameProcessorLoop();
         }
-        
         this.hapticFeedback();
     }
 
-    // --- Google Vision API Utility ---
-    async callGoogleVision(type, imageBase64) {
-        const apiKey = this.settings.googleApiKey || 'AIzaSyC4a1d_9cR5Oj3OfdDEzrAsOtDWwNVpVIc';
-        const url = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
-        const body = {
-            requests: [{
-                image: { content: imageBase64 },
-                features: [{ type, maxResults: 10 }]
-            }]
-        };
-        try {
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
+    // --- Overlays for Real-Time Detection ---
+    showDetectionOverlay(type, data) {
+        const overlay = document.getElementById('frameProcessorCanvas');
+        const ctx = overlay.getContext('2d');
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+        if (!data) return;
+        overlay.width = 1280;
+        overlay.height = 720;
+        ctx.strokeStyle = type === 'face' ? '#00e676' : type === 'object' ? '#2979ff' : '#ff9100';
+        ctx.lineWidth = 3;
+        ctx.font = '18px Arial';
+        ctx.fillStyle = ctx.strokeStyle;
+        if (type === 'face') {
+            data.forEach(face => {
+                if (face.boundingPoly) {
+                    const box = face.boundingPoly.vertices;
+                    ctx.beginPath();
+                    ctx.moveTo(box[0].x, box[0].y);
+                    for (let i = 1; i < box.length; i++) ctx.lineTo(box[i].x, box[i].y);
+                    ctx.closePath();
+                    ctx.stroke();
+                    ctx.fillText('Obličej', box[0].x, box[0].y - 5);
+                }
             });
-            if (!res.ok) {
-                let msg = 'Chyba připojení k Google API';
-                try { const err = await res.json(); msg = err.error?.message || msg; } catch {}
-                throw new Error(msg);
-            }
-            return await res.json();
-        } catch (e) {
-            this.showToast('Chyba Google Vision API: ' + (e.message || e), 'error');
-            throw e;
+        } else if (type === 'object') {
+            data.forEach(obj => {
+                const box = obj.boundingPoly.normalizedVertices;
+                if (box && box.length >= 2) {
+                    ctx.beginPath();
+                    ctx.moveTo(box[0].x * 1280, box[0].y * 720);
+                    for (let i = 1; i < box.length; i++) ctx.lineTo(box[i].x * 1280, box[i].y * 720);
+                    ctx.closePath();
+                    ctx.stroke();
+                    ctx.fillText(obj.name, box[0].x * 1280, box[0].y * 720 - 5);
+                }
+            });
+        } else if (type === 'text') {
+            ctx.fillText(data, 20, 40);
         }
     }
 
-    // --- Generic Google API Call Utility ---
-    async callGoogleApi(apiName, params = {}, method = 'GET', body = null) {
-        const apiKey = this.settings.googleApiKey || 'AIzaSyC4a1d_9cR5Oj3OfdDEzrAsOtDWwNVpVIc';
-        let url = `https://www.googleapis.com/${apiName}?key=${apiKey}`;
-        if (method === 'GET' && Object.keys(params).length > 0) {
-            const query = new URLSearchParams(params).toString();
-            url += `&${query}`;
-        }
-        const res = await fetch(url, {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: method !== 'GET' && body ? JSON.stringify(body) : undefined
-        });
-        return await res.json();
-    }
-
-    // --- Real-Time Face Detection ---
-    async performObjectDetection() {
-        this.showProcessingStatus('Analyzuji objekty...');
-        try {
-            const imageBase64 = await this.captureCurrentFrameBase64();
-            const result = await this.callGoogleVision('OBJECT_LOCALIZATION', imageBase64);
-            this.hideProcessingStatus();
-            const objects = result.responses?.[0]?.localizedObjectAnnotations || [];
-            if (objects.length > 0) {
-                const names = objects.map(o => o.name).join(', ');
-                this.showToast(`Detekovány objekty: ${names}`, 'success');
-            } else {
-                this.showToast('Žádné objekty nenalezeny', 'info');
-            }
-        } catch (e) {
-            this.hideProcessingStatus();
-            this.showToast('Chyba při detekci objektů', 'error');
-        }
-    }
-
-    async performTextRecognition() {
-        this.showProcessingStatus('Rozpoznávám text...');
-        try {
-            const imageBase64 = await this.captureCurrentFrameBase64();
-            const result = await this.callGoogleVision('TEXT_DETECTION', imageBase64);
-            this.hideProcessingStatus();
-            const text = result.responses?.[0]?.fullTextAnnotation?.text || '';
-            if (text) {
-                this.showToast(`Text: "${text}"`, 'success');
-            } else {
-                this.showToast('Žádný text nenalezen', 'info');
-            }
-        } catch (e) {
-            this.hideProcessingStatus();
-            this.showToast('Chyba při rozpoznání textu', 'error');
-        }
-    }
-
-    async performFaceDetection() {
-        this.showProcessingStatus('Detekuji obličeje...');
+    async performFaceDetection(isRealtime = false) {
         try {
             const imageBase64 = await this.captureCurrentFrameBase64();
             const result = await this.callGoogleVision('FACE_DETECTION', imageBase64);
-            this.hideProcessingStatus();
             const faces = result.responses?.[0]?.faceAnnotations || [];
-            if (faces.length > 0) {
-                this.showToast(`Detekováno obličejů: ${faces.length}`, 'success');
-            } else {
-                this.showToast('Žádné obličeje nenalezeny', 'info');
+            if (isRealtime) this.showDetectionOverlay('face', faces);
+            if (!isRealtime) {
+                if (faces.length > 0) this.showToast(`Detekováno obličejů: ${faces.length}`, 'success');
+                else this.showToast('Žádné obličeje nenalezeny', 'info');
             }
         } catch (e) {
-            this.hideProcessingStatus();
-            this.showToast('Chyba při detekci obličejů', 'error');
+            if (!isRealtime) this.showToast('Chyba při detekci obličejů', 'error');
+        }
+    }
+    async performObjectDetection(isRealtime = false) {
+        try {
+            const imageBase64 = await this.captureCurrentFrameBase64();
+            const result = await this.callGoogleVision('OBJECT_LOCALIZATION', imageBase64);
+            const objects = result.responses?.[0]?.localizedObjectAnnotations || [];
+            if (isRealtime) this.showDetectionOverlay('object', objects);
+            if (!isRealtime) {
+                if (objects.length > 0) {
+                    const names = objects.map(o => o.name).join(', ');
+                    this.showToast(`Detekovány objekty: ${names}`, 'success');
+                } else {
+                    this.showToast('Žádné objekty nenalezeny', 'info');
+                }
+            }
+        } catch (e) {
+            if (!isRealtime) this.showToast('Chyba při detekci objektů', 'error');
+        }
+    }
+    async performTextRecognition(isRealtime = false) {
+        try {
+            const imageBase64 = await this.captureCurrentFrameBase64();
+            const result = await this.callGoogleVision('TEXT_DETECTION', imageBase64);
+            const text = result.responses?.[0]?.fullTextAnnotation?.text || '';
+            if (isRealtime) this.showDetectionOverlay('text', text);
+            if (!isRealtime) {
+                if (text) this.showToast(`Text: "${text}"`, 'success');
+                else this.showToast('Žádný text nenalezen', 'info');
+            }
+        } catch (e) {
+            if (!isRealtime) this.showToast('Chyba při rozpoznání textu', 'error');
         }
     }
 
@@ -801,6 +817,8 @@ class VisionCameraApp {
         document.getElementById('autoSave').checked = this.settings.autoSave;
         document.getElementById('googleApiKey').value = this.settings.googleApiKey || '';
         document.getElementById('perplexityApiKey').value = this.settings.perplexityApiKey || '';
+        if (document.getElementById('geminiApiKey'))
+            document.getElementById('geminiApiKey').value = this.settings.geminiApiKey || '';
         
         document.getElementById('settingsModal').classList.remove('hidden');
     }
@@ -972,7 +990,11 @@ class VisionCameraApp {
 
     // --- Perplexity AI Chat Integration ---
     async callPerplexity(prompt) {
-        const apiKey = this.settings.perplexityApiKey || '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';
+        const apiKey = this.settings.perplexityApiKey || '';
+        if (!apiKey) {
+            this.showToast('Nastavte Perplexity API klíč v nastavení.', 'error');
+            throw new Error('Chybí Perplexity API klíč');
+        }
         const url = 'https://api.perplexity.ai/v1/chat/completions';
         const body = {
             model: 'pplx-70b-online',
@@ -996,39 +1018,80 @@ class VisionCameraApp {
             return data.choices?.[0]?.message?.content || '';
         } catch (e) {
             this.showToast('Chyba Perplexity API: ' + (e.message || e), 'error');
-            return 'Došlo k chybě při komunikaci s AI.';
+            throw e;
         }
     }
 
-    showChatModal() {
-        let modal = document.getElementById('chatModal');
+    // --- Gemini AI Chat Integration ---
+    async callGemini(prompt) {
+        const apiKey = this.settings.geminiApiKey || '';
+        if (!apiKey) {
+            this.showToast('Nastavte Gemini API klíč v nastavení.', 'error');
+            throw new Error('Chybí Gemini API klíč');
+        }
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+        const body = {
+            contents: [{ parts: [{ text: prompt }], language: 'cs' }]
+        };
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) {
+                let msg = 'Chyba připojení ke Gemini API';
+                try { const err = await res.json(); msg = err.error?.message || msg; } catch {}
+                throw new Error(msg);
+            }
+            const data = await res.json();
+            return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        } catch (e) {
+            this.showToast('Chyba Gemini API: ' + (e.message || e), 'error');
+            throw e;
+        }
+    }
+
+    // --- Unified Chat Modal (used for both Perplexity and Gemini) ---
+    showChatModal(type = 'perplexity') {
+        // Remove any other open chat modals
+        ['perplexityChatModal', 'geminiChatModal'].forEach(id => {
+            const m = document.getElementById(id);
+            if (m) m.classList.add('hidden');
+        });
+        let modal = document.getElementById(`${type}ChatModal`);
         if (!modal) {
             modal = document.createElement('div');
-            modal.id = 'chatModal';
+            modal.id = `${type}ChatModal`;
             modal.className = 'modal';
+            modal.style.background = 'rgba(30,30,30,0.7)';
             modal.innerHTML = `
-                <div class="modal-content" style="max-width:500px">
-                    <h3>AI Chat (Perplexity, česky) <span title="Zeptejte se AI na cokoliv v češtině!" style="cursor:help;">❓</span></h3>
-                    <div id="chatHistory" style="height:200px;overflow-y:auto;background:#f6f6f6;padding:8px;margin-bottom:8px;"></div>
-                    <input id="chatInput" type="text" placeholder="Zeptejte se na cokoliv..." style="width:80%">
-                    <button id="chatSendBtn">Odeslat</button>
-                    <button id="closeChatBtn" style="float:right">Zavřít</button>
+                <div class="modal-content" style="max-width:500px;background:rgba(255,255,255,0.92);border-radius:16px;box-shadow:0 4px 32px #0002;">
+                    <h3 style="margin-bottom:8px;">AI Chat (${type === 'perplexity' ? 'Perplexity' : 'Gemini'}, česky)
+                        <span title="Zeptejte se AI na cokoliv v češtině!" style="cursor:help;">❓</span>
+                    </h3>
+                    <div id="${type}ChatHistory" style="height:200px;overflow-y:auto;background:#f6f6f6;padding:8px;margin-bottom:8px;border-radius:8px;"></div>
+                    <input id="${type}ChatInput" type="text" placeholder="Zeptejte se na cokoliv..." style="width:80%">
+                    <button id="${type}ChatSendBtn">Odeslat</button>
+                    <button id="close${type.charAt(0).toUpperCase() + type.slice(1)}ChatBtn" style="float:right">Zavřít</button>
                 </div>
             `;
             document.body.appendChild(modal);
-            document.getElementById('closeChatBtn').onclick = () => modal.classList.add('hidden');
-            document.getElementById('chatSendBtn').onclick = () => this.sendChatMessage();
-            document.getElementById('chatInput').onkeydown = (e) => { if (e.key === 'Enter') this.sendChatMessage(); };
+            document.getElementById(`close${type.charAt(0).toUpperCase() + type.slice(1)}ChatBtn`).onclick = () => modal.classList.add('hidden');
+            document.getElementById(`${type}ChatSendBtn`).onclick = () => this.sendChatMessage(type);
+            document.getElementById(`${type}ChatInput`).onkeydown = (e) => { if (e.key === 'Enter') this.sendChatMessage(type); };
         }
-        document.getElementById('chatHistory').innerHTML = '';
+        document.getElementById(`${type}ChatHistory`).innerHTML = '';
         modal.classList.remove('hidden');
+        document.getElementById(`${type}ChatInput`).focus();
     }
 
-    async sendChatMessage() {
-        const input = document.getElementById('chatInput');
-        const history = document.getElementById('chatHistory');
+    async sendChatMessage(type = 'perplexity') {
+        const input = document.getElementById(`${type}ChatInput`);
+        const history = document.getElementById(`${type}ChatHistory`);
         const userMsg = input.value.trim();
         if (!userMsg) return;
+        input.disabled = true;
         history.innerHTML += `<div><b>Vy:</b> ${userMsg}</div>`;
         input.value = '';
         history.scrollTop = history.scrollHeight;
@@ -1036,63 +1099,27 @@ class VisionCameraApp {
         history.scrollTop = history.scrollHeight;
         let aiMsg = '';
         try {
-            aiMsg = await this.callPerplexity(userMsg);
+            if (type === 'perplexity') {
+                aiMsg = await this.callPerplexity(userMsg);
+            } else {
+                aiMsg = await this.callGemini(userMsg);
+            }
         } catch (e) {
             aiMsg = 'Došlo k chybě při komunikaci s AI.';
         }
         history.innerHTML = history.innerHTML.replace('<div><i>AI přemýšlí...</i></div>', '');
         history.innerHTML += `<div><b>AI:</b> ${aiMsg}</div>`;
         history.scrollTop = history.scrollHeight;
-    }
-
-    showGoogleApiModal() {
-        let modal = document.getElementById('googleApiModal');
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'googleApiModal';
-            modal.className = 'modal';
-            modal.innerHTML = `
-                <div class="modal-content" style="max-width:600px">
-                    <h3>Google API Test</h3>
-                    <label>API jméno (např. vision/v1/images:annotate):<br><input id="googleApiName" style="width:100%"></label><br>
-                    <label>Parametry (JSON):<br><textarea id="googleApiParams" style="width:100%;height:40px"></textarea></label><br>
-                    <label>Metoda:<br><select id="googleApiMethod"><option>GET</option><option>POST</option></select></label><br>
-                    <label>Tělo (JSON, pro POST):<br><textarea id="googleApiBody" style="width:100%;height:40px"></textarea></label><br>
-                    <button id="googleApiSendBtn">Odeslat</button>
-                    <button id="closeGoogleApiBtn" style="float:right">Zavřít</button>
-                    <pre id="googleApiResult" style="background:#f6f6f6;padding:8px;margin-top:8px;max-height:200px;overflow:auto"></pre>
-                </div>
-            `;
-            document.body.appendChild(modal);
-            document.getElementById('closeGoogleApiBtn').onclick = () => modal.classList.add('hidden');
-            document.getElementById('googleApiSendBtn').onclick = () => this.sendGoogleApiRequest();
-        }
-        document.getElementById('googleApiResult').textContent = '';
-        modal.classList.remove('hidden');
-    }
-
-    async sendGoogleApiRequest() {
-        const apiName = document.getElementById('googleApiName').value.trim();
-        let params = {};
-        try { params = JSON.parse(document.getElementById('googleApiParams').value || '{}'); } catch {}
-        const method = document.getElementById('googleApiMethod').value;
-        let body = null;
-        try { body = JSON.parse(document.getElementById('googleApiBody').value || '{}'); } catch {}
-        document.getElementById('googleApiResult').textContent = 'Načítám...';
-        try {
-            const result = await this.callGoogleApi(apiName, params, method, body);
-            document.getElementById('googleApiResult').textContent = JSON.stringify(result, null, 2);
-        } catch (e) {
-            document.getElementById('googleApiResult').textContent = 'Chyba: ' + e;
-        }
+        input.disabled = false;
+        input.focus();
     }
 
     // --- Onboarding tooltips for new features ---
     showOnboardingTips() {
         if (!localStorage.getItem('visionCameraOnboarded')) {
-            this.showToast('Novinka: AI chat a Google API v nastavení!', 'success');
+            this.showToast('Novinka: AI chat (Perplexity, Gemini) a Google API v nastavení!', 'success');
             setTimeout(() => {
-                this.showToast('Vyzkoušejte tlačítko AI chat 💬 a Google API 🧩 nahoře!', 'info');
+                this.showToast('Vyzkoušejte tlačítko AI chat 💬, Gemini 🌟 a Google API 🧩 nahoře!', 'info');
             }, 3500);
             localStorage.setItem('visionCameraOnboarded', '1');
         }
