@@ -1,0 +1,21 @@
+Funkce,iOS Safari 14+,Android Chrome 88+,Firefox 90+,Edge 88+
+getUserMedia (Camera Access),✅ Plná podpora,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora
+MediaRecorder (Video Recording),✅ WebM/MP4,✅ WebM/MP4/WebP,✅ WebM primarily,✅ WebM/MP4
+Image Capture API,❌ Není podporováno,✅ Plná podpora,⚠️ Experimentální,✅ Plná podpora
+Canvas drawImage,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora
+Web Workers,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora
+Service Worker,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora
+PWA Manifest,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora
+WebRTC,✅ Od verze 11+,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora
+Camera Constraints (zoom),✅ Základní podpora,✅ Pokročilé constraints,✅ Základní podpora,✅ Pokročilé constraints
+Torch/Flash Control,⚠️ Od iOS 17.4+,✅ Plná podpora,⚠️ Desktop only,⚠️ Desktop webcam only
+Device Enumeration,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora
+Screen Wake Lock,⚠️ Experimentální,✅ Plná podpora,⚠️ Experimentální,✅ Plná podpora
+Vibration API,❌ Není podporováno,✅ Plná podpora,✅ Plná podpora,❌ Není podporováno
+File API,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora
+Blob URLs,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora
+IndexedDB,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora
+Local Storage,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora
+Touch Events,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora
+Fullscreen API,⚠️ Omezené v PWA,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora
+Performance API,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora,✅ Plná podpora
