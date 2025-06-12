@@ -23,6 +23,7 @@ class VisionCameraApp {
         this.device = this.detectDevice();
         this.capabilities = { zoom: { max: 8 }, torch: false };
         this.isDemo = false;
+        this.analytics = [];
         
         // Quick initialization with fallback
         this.quickInit();
@@ -47,6 +48,9 @@ class VisionCameraApp {
         
         this.startPerformanceMonitoring();
         this.setupServiceWorker();
+
+        // --- Onboarding tooltips for new features ---
+        this.showOnboardingTips();
     }
 
     async tryInitializeCamera() {
@@ -133,6 +137,8 @@ class VisionCameraApp {
         document.getElementById('formatSelect').addEventListener('change', (e) => this.updateSetting('format', e.target.value));
         document.getElementById('hapticFeedback').addEventListener('change', (e) => this.updateSetting('hapticFeedback', e.target.checked));
         document.getElementById('autoSave').addEventListener('change', (e) => this.updateSetting('autoSave', e.target.checked));
+        document.getElementById('googleApiKey').addEventListener('change', (e) => this.updateSetting('googleApiKey', e.target.value));
+        document.getElementById('perplexityApiKey').addEventListener('change', (e) => this.updateSetting('perplexityApiKey', e.target.value));
         
         // PWA install
         const installBtn = document.getElementById('installPwaBtn');
@@ -154,6 +160,14 @@ class VisionCameraApp {
                 }
             });
         });
+        
+        // Add chat button event
+        const chatBtn = document.getElementById('chatBtn');
+        if (chatBtn) chatBtn.addEventListener('click', () => this.showChatModal());
+        
+        // Add Google API test button event
+        const googleApiBtn = document.getElementById('googleApiBtn');
+        if (googleApiBtn) googleApiBtn.addEventListener('click', () => this.showGoogleApiModal());
     }
 
     setupDemoMode() {
@@ -229,32 +243,23 @@ class VisionCameraApp {
 
     showFocusIndicator(x, y) {
         const indicator = document.createElement('div');
-        indicator.style.cssText = `
-            position: absolute;
-            left: ${x - 25}px;
-            top: ${y - 25}px;
-            width: 50px;
-            height: 50px;
-            border: 2px solid white;
-            border-radius: 50%;
-            pointer-events: none;
-            animation: focusPulse 0.6s ease-out;
-            z-index: 200;
-        `;
-        
+        indicator.style.cssText =
+            'position: absolute;' +
+            `left: ${x - 25}px;` +
+            `top: ${y - 25}px;` +
+            'width: 50px;' +
+            'height: 50px;' +
+            'border: 2px solid white;' +
+            'border-radius: 50%;' +
+            'pointer-events: none;' +
+            'animation: focusPulse 0.6s ease-out;' +
+            'z-index: 200;';
         document.body.appendChild(indicator);
         setTimeout(() => indicator.remove(), 600);
-        
         if (!document.getElementById('focusStyle')) {
             const style = document.createElement('style');
             style.id = 'focusStyle';
-            style.textContent = `
-                @keyframes focusPulse {
-                    0% { transform: scale(1.5); opacity: 0; }
-                    50% { transform: scale(1); opacity: 1; }
-                    100% { transform: scale(0.8); opacity: 0; }
-                }
-            `;
+            style.textContent = `@keyframes focusPulse {\n0% { transform: scale(1.5); opacity: 0; }\n50% { transform: scale(1); opacity: 1; }\n100% { transform: scale(0.8); opacity: 0; }\n}`;
             document.head.appendChild(style);
         }
     }
@@ -365,6 +370,7 @@ class VisionCameraApp {
 
     switchMode(mode) {
         this.currentMode = mode;
+        this.trackEvent('switchMode', { mode });
         
         // Update active mode button
         document.querySelectorAll('.mode-btn').forEach(btn => {
@@ -472,6 +478,7 @@ class VisionCameraApp {
             
             this.gallery.push(photo);
             this.saveGallery();
+            this.trackEvent('capturePhoto', { camera: this.currentCamera, zoom: this.currentZoom });
             
             this.showCaptureFlash();
             this.hapticFeedback();
@@ -521,6 +528,7 @@ class VisionCameraApp {
             
             this.mediaRecorder.onstop = () => this.saveVideoRecording();
             this.mediaRecorder.start();
+            this.trackEvent('startVideoRecording', { camera: this.currentCamera, zoom: this.currentZoom });
             
         } catch (error) {
             console.error('Video recording start error:', error);
@@ -559,6 +567,8 @@ class VisionCameraApp {
             };
             this.gallery.push(video);
             this.saveGallery();
+        } else {
+            this.trackEvent('stopVideoRecording', { camera: this.currentCamera, zoom: this.currentZoom });
         }
     }
 
@@ -652,6 +662,9 @@ class VisionCameraApp {
         
         switch (processor) {
             case 'faceDetection':
+                if (this.frameProcessors[processor]) {
+                    this.performFaceDetection();
+                }
                 this.toggleFaceDetection();
                 break;
             case 'objectDetection':
@@ -669,131 +682,125 @@ class VisionCameraApp {
         this.hapticFeedback();
     }
 
-    toggleFaceDetection() {
-        const overlay = document.getElementById('faceOverlay');
-        if (this.frameProcessors.faceDetection) {
-            overlay.classList.remove('hidden');
-        } else {
-            overlay.classList.add('hidden');
+    // --- Google Vision API Utility ---
+    async callGoogleVision(type, imageBase64) {
+        const apiKey = this.settings.googleApiKey || 'AIzaSyC4a1d_9cR5Oj3OfdDEzrAsOtDWwNVpVIc';
+        const url = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
+        const body = {
+            requests: [{
+                image: { content: imageBase64 },
+                features: [{ type, maxResults: 10 }]
+            }]
+        };
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) {
+                let msg = 'Chyba připojení k Google API';
+                try { const err = await res.json(); msg = err.error?.message || msg; } catch {}
+                throw new Error(msg);
+            }
+            return await res.json();
+        } catch (e) {
+            this.showToast('Chyba Google Vision API: ' + (e.message || e), 'error');
+            throw e;
         }
     }
 
+    // --- Generic Google API Call Utility ---
+    async callGoogleApi(apiName, params = {}, method = 'GET', body = null) {
+        const apiKey = this.settings.googleApiKey || 'AIzaSyC4a1d_9cR5Oj3OfdDEzrAsOtDWwNVpVIc';
+        let url = `https://www.googleapis.com/${apiName}?key=${apiKey}`;
+        if (method === 'GET' && Object.keys(params).length > 0) {
+            const query = new URLSearchParams(params).toString();
+            url += `&${query}`;
+        }
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: method !== 'GET' && body ? JSON.stringify(body) : undefined
+        });
+        return await res.json();
+    }
+
+    // --- Real-Time Face Detection ---
     async performObjectDetection() {
         this.showProcessingStatus('Analyzuji objekty...');
-        
-        setTimeout(() => {
-            const objects = ['Auto', 'Strom', 'Budova', 'Osoba', 'Kolo', 'Pes', 'Květina', 'Telefon', 'Notebook'];
-            const detectedObject = objects[Math.floor(Math.random() * objects.length)];
-            
+        try {
+            const imageBase64 = await this.captureCurrentFrameBase64();
+            const result = await this.callGoogleVision('OBJECT_LOCALIZATION', imageBase64);
             this.hideProcessingStatus();
-            this.showToast(`Detekován objekt: ${detectedObject}`, 'success');
-        }, 2000);
+            const objects = result.responses?.[0]?.localizedObjectAnnotations || [];
+            if (objects.length > 0) {
+                const names = objects.map(o => o.name).join(', ');
+                this.showToast(`Detekovány objekty: ${names}`, 'success');
+            } else {
+                this.showToast('Žádné objekty nenalezeny', 'info');
+            }
+        } catch (e) {
+            this.hideProcessingStatus();
+            this.showToast('Chyba při detekci objektů', 'error');
+        }
     }
 
     async performTextRecognition() {
         this.showProcessingStatus('Rozpoznávám text...');
-        
-        setTimeout(() => {
-            const sampleTexts = [
-                'Lorem ipsum dolor sit amet',
-                'Výstupní cedule - Náměstí Míru',
-                'Parkovací lístek platný do 18:00',
-                'Restaurace otevřeno 10-22',
-                'Pozor - mokrá podlaha',
-                'STOP',
-                'VisionCamera Demo Text'
-            ];
-            const recognizedText = sampleTexts[Math.floor(Math.random() * sampleTexts.length)];
-            
+        try {
+            const imageBase64 = await this.captureCurrentFrameBase64();
+            const result = await this.callGoogleVision('TEXT_DETECTION', imageBase64);
             this.hideProcessingStatus();
-            this.showToast(`Text: "${recognizedText}"`, 'success');
-        }, 1500);
-    }
-
-    startQRScanning() {
-        if (this.qrScanningInterval) {
-            clearInterval(this.qrScanningInterval);
-        }
-        
-        if (this.frameProcessors.qrScanning) {
-            this.qrScanningInterval = setInterval(() => {
-                if (Math.random() < 0.2) { // 20% chance per scan
-                    const mockQRCodes = [
-                        'https://example.com/qr-demo',
-                        'https://github.com/vision-camera',
-                        'Kontakt: +420 123 456 789',
-                        'WiFi: VisionCamera_Demo / heslo123',
-                        'GPS: 50.0755, 14.4378 (Praha)',
-                        'Text: Ahoj ze QR kódu!'
-                    ];
-                    const qrData = mockQRCodes[Math.floor(Math.random() * mockQRCodes.length)];
-                    this.handleQRDetection(qrData);
-                }
-            }, 2000);
+            const text = result.responses?.[0]?.fullTextAnnotation?.text || '';
+            if (text) {
+                this.showToast(`Text: "${text}"`, 'success');
+            } else {
+                this.showToast('Žádný text nenalezen', 'info');
+            }
+        } catch (e) {
+            this.hideProcessingStatus();
+            this.showToast('Chyba při rozpoznání textu', 'error');
         }
     }
 
-    handleQRDetection(data) {
-        const qrResult = document.querySelector('.qr-result');
-        qrResult.textContent = data;
-        qrResult.style.display = 'block';
-        
-        this.hapticFeedback();
-        this.showToast(`QR: ${data}`, 'success');
-        
-        setTimeout(() => {
-            qrResult.style.display = 'none';
-        }, 4000);
-    }
-
-    showProcessingStatus(message) {
-        const status = document.getElementById('processingStatus');
-        status.querySelector('span').textContent = message;
-        status.classList.remove('hidden');
-    }
-
-    hideProcessingStatus() {
-        document.getElementById('processingStatus').classList.add('hidden');
-    }
-
-    showGallery() {
-        const modal = document.getElementById('galleryModal');
-        const grid = document.getElementById('galleryGrid');
-        
-        grid.innerHTML = '';
-        
-        if (this.gallery.length === 0) {
-            grid.innerHTML = '<div class="gallery-empty">Žádné fotky nebo videa<br><small>Pořiďte nějaký obsah a objeví se zde</small></div>';
-        } else {
-            this.gallery.forEach(item => {
-                const element = document.createElement('div');
-                element.className = 'gallery-item';
-                
-                if (item.type === 'photo') {
-                    element.innerHTML = `<img src="${item.data}" alt="Photo">`;
-                } else {
-                    element.innerHTML = `<div style="background: #333; color: white; display: flex; align-items: center; justify-content: center; height: 100%;">🎥 VIDEO</div>`;
-                }
-                
-                element.addEventListener('click', () => this.viewGalleryItem(item));
-                grid.appendChild(element);
-            });
+    async performFaceDetection() {
+        this.showProcessingStatus('Detekuji obličeje...');
+        try {
+            const imageBase64 = await this.captureCurrentFrameBase64();
+            const result = await this.callGoogleVision('FACE_DETECTION', imageBase64);
+            this.hideProcessingStatus();
+            const faces = result.responses?.[0]?.faceAnnotations || [];
+            if (faces.length > 0) {
+                this.showToast(`Detekováno obličejů: ${faces.length}`, 'success');
+            } else {
+                this.showToast('Žádné obličeje nenalezeny', 'info');
+            }
+        } catch (e) {
+            this.hideProcessingStatus();
+            this.showToast('Chyba při detekci obličejů', 'error');
         }
-        
-        modal.classList.remove('hidden');
     }
 
-    viewGalleryItem(item) {
-        const date = new Date(item.timestamp).toLocaleDateString('cs-CZ');
-        const time = new Date(item.timestamp).toLocaleTimeString('cs-CZ');
-        this.showToast(`${item.type.toUpperCase()} z ${date} ${time}`);
+    async captureCurrentFrameBase64() {
+        // Capture current video frame as base64
+        const preview = document.getElementById('cameraPreview');
+        const canvas = document.createElement('canvas');
+        canvas.width = preview.videoWidth || 1280;
+        canvas.height = preview.videoHeight || 720;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(preview, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL('image/jpeg', 0.9).replace(/^data:image\/jpeg;base64,/, '');
     }
 
+    // Add Google API key to settings UI (optional, for user override)
     showSettings() {
         document.getElementById('qualitySelect').value = this.settings.quality;
         document.getElementById('formatSelect').value = this.settings.format;
         document.getElementById('hapticFeedback').checked = this.settings.hapticFeedback;
         document.getElementById('autoSave').checked = this.settings.autoSave;
+        document.getElementById('googleApiKey').value = this.settings.googleApiKey || '';
+        document.getElementById('perplexityApiKey').value = this.settings.perplexityApiKey || '';
         
         document.getElementById('settingsModal').classList.remove('hidden');
     }
@@ -947,6 +954,147 @@ class VisionCameraApp {
             localStorage.setItem('visionCameraGallery', JSON.stringify(galleryMeta));
         } catch (error) {
             console.error('Error saving gallery:', error);
+        }
+    }
+
+    // --- Analytics Tracking ---
+    trackEvent(event, data = {}) {
+        const entry = {
+            event,
+            timestamp: new Date().toISOString(),
+            ...data
+        };
+        this.analytics.push(entry);
+        try {
+            localStorage.setItem('visionCameraAnalytics', JSON.stringify(this.analytics));
+        } catch (e) {}
+    }
+
+    // --- Perplexity AI Chat Integration ---
+    async callPerplexity(prompt) {
+        const apiKey = this.settings.perplexityApiKey || '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';
+        const url = 'https://api.perplexity.ai/v1/chat/completions';
+        const body = {
+            model: 'pplx-70b-online',
+            messages: [{ role: 'user', content: prompt, language: 'cs' }]
+        };
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) {
+                let msg = 'Chyba připojení k Perplexity API';
+                try { const err = await res.json(); msg = err.error?.message || msg; } catch {}
+                throw new Error(msg);
+            }
+            const data = await res.json();
+            return data.choices?.[0]?.message?.content || '';
+        } catch (e) {
+            this.showToast('Chyba Perplexity API: ' + (e.message || e), 'error');
+            return 'Došlo k chybě při komunikaci s AI.';
+        }
+    }
+
+    showChatModal() {
+        let modal = document.getElementById('chatModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'chatModal';
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width:500px">
+                    <h3>AI Chat (Perplexity, česky) <span title="Zeptejte se AI na cokoliv v češtině!" style="cursor:help;">❓</span></h3>
+                    <div id="chatHistory" style="height:200px;overflow-y:auto;background:#f6f6f6;padding:8px;margin-bottom:8px;"></div>
+                    <input id="chatInput" type="text" placeholder="Zeptejte se na cokoliv..." style="width:80%">
+                    <button id="chatSendBtn">Odeslat</button>
+                    <button id="closeChatBtn" style="float:right">Zavřít</button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            document.getElementById('closeChatBtn').onclick = () => modal.classList.add('hidden');
+            document.getElementById('chatSendBtn').onclick = () => this.sendChatMessage();
+            document.getElementById('chatInput').onkeydown = (e) => { if (e.key === 'Enter') this.sendChatMessage(); };
+        }
+        document.getElementById('chatHistory').innerHTML = '';
+        modal.classList.remove('hidden');
+    }
+
+    async sendChatMessage() {
+        const input = document.getElementById('chatInput');
+        const history = document.getElementById('chatHistory');
+        const userMsg = input.value.trim();
+        if (!userMsg) return;
+        history.innerHTML += `<div><b>Vy:</b> ${userMsg}</div>`;
+        input.value = '';
+        history.scrollTop = history.scrollHeight;
+        history.innerHTML += `<div><i>AI přemýšlí...</i></div>`;
+        history.scrollTop = history.scrollHeight;
+        let aiMsg = '';
+        try {
+            aiMsg = await this.callPerplexity(userMsg);
+        } catch (e) {
+            aiMsg = 'Došlo k chybě při komunikaci s AI.';
+        }
+        history.innerHTML = history.innerHTML.replace('<div><i>AI přemýšlí...</i></div>', '');
+        history.innerHTML += `<div><b>AI:</b> ${aiMsg}</div>`;
+        history.scrollTop = history.scrollHeight;
+    }
+
+    showGoogleApiModal() {
+        let modal = document.getElementById('googleApiModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'googleApiModal';
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width:600px">
+                    <h3>Google API Test</h3>
+                    <label>API jméno (např. vision/v1/images:annotate):<br><input id="googleApiName" style="width:100%"></label><br>
+                    <label>Parametry (JSON):<br><textarea id="googleApiParams" style="width:100%;height:40px"></textarea></label><br>
+                    <label>Metoda:<br><select id="googleApiMethod"><option>GET</option><option>POST</option></select></label><br>
+                    <label>Tělo (JSON, pro POST):<br><textarea id="googleApiBody" style="width:100%;height:40px"></textarea></label><br>
+                    <button id="googleApiSendBtn">Odeslat</button>
+                    <button id="closeGoogleApiBtn" style="float:right">Zavřít</button>
+                    <pre id="googleApiResult" style="background:#f6f6f6;padding:8px;margin-top:8px;max-height:200px;overflow:auto"></pre>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            document.getElementById('closeGoogleApiBtn').onclick = () => modal.classList.add('hidden');
+            document.getElementById('googleApiSendBtn').onclick = () => this.sendGoogleApiRequest();
+        }
+        document.getElementById('googleApiResult').textContent = '';
+        modal.classList.remove('hidden');
+    }
+
+    async sendGoogleApiRequest() {
+        const apiName = document.getElementById('googleApiName').value.trim();
+        let params = {};
+        try { params = JSON.parse(document.getElementById('googleApiParams').value || '{}'); } catch {}
+        const method = document.getElementById('googleApiMethod').value;
+        let body = null;
+        try { body = JSON.parse(document.getElementById('googleApiBody').value || '{}'); } catch {}
+        document.getElementById('googleApiResult').textContent = 'Načítám...';
+        try {
+            const result = await this.callGoogleApi(apiName, params, method, body);
+            document.getElementById('googleApiResult').textContent = JSON.stringify(result, null, 2);
+        } catch (e) {
+            document.getElementById('googleApiResult').textContent = 'Chyba: ' + e;
+        }
+    }
+
+    // --- Onboarding tooltips for new features ---
+    showOnboardingTips() {
+        if (!localStorage.getItem('visionCameraOnboarded')) {
+            this.showToast('Novinka: AI chat a Google API v nastavení!', 'success');
+            setTimeout(() => {
+                this.showToast('Vyzkoušejte tlačítko AI chat 💬 a Google API 🧩 nahoře!', 'info');
+            }, 3500);
+            localStorage.setItem('visionCameraOnboarded', '1');
         }
     }
 

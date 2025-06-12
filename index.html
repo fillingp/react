@@ -74,6 +74,19 @@
                 </svg>
             </button>
             
+            <button id="chatBtn" class="control-btn chat-btn" title="AI Chat">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+            </button>
+            
+            <button id="googleApiBtn" class="control-btn google-api-btn" title="Google API Test">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 8v4l3 3"/>
+                </svg>
+            </button>
+            
             <button id="settingsBtn" class="control-btn settings-btn" title="Nastavení">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="3"/>
@@ -203,6 +216,15 @@
                         Automatické uložení
                     </label>
                 </div>
+                
+                <div class="setting-group">
+                    <label for="googleApiKey">Google API klíč</label>
+                    <input type="text" id="googleApiKey" placeholder="Google API Key">
+                </div>
+                <div class="setting-group">
+                    <label for="perplexityApiKey">Perplexity API klíč</label>
+                    <input type="text" id="perplexityApiKey" placeholder="Perplexity API Key">
+                </div>
             </div>
         </div>
     </div>
@@ -222,6 +244,7 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
